@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Química Imobiliária + PhET</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:16px;background:#f4f5f7;color:#202124}
+main{max-width:900px;margin:auto}
+h1{margin:0 0 4px;font-size:28px}
+.subtitle{color:#5f6368;margin-bottom:16px}
+.card{background:white;border:1px solid #ddd;border-radius:14px;padding:16px;margin-bottom:14px}
+.hidden{display:none!important}
+select,button{font-size:16px;padding:11px 14px;border-radius:9px;border:1px solid #bbb;background:white;cursor:pointer}
+button.primary{background:#2f6fed;color:white;border-color:#2f6fed}
+button:disabled{opacity:.5;cursor:not-allowed}
+.setup{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.scores{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.score{padding:7px 10px;border:1px solid #ddd;border-radius:9px;background:#fafafa}
+.board{width:min(94vw,650px);aspect-ratio:1;margin:auto;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(7,1fr);border:3px solid #333;border-radius:12px;overflow:hidden;background:#fff}
+.cell{border:1px solid #bbb;padding:4px;display:flex;flex-direction:column;justify-content:space-between;min-width:0;font-size:clamp(9px,1.6vw,14px)}
+.cell.special{background:#eef4ff;font-weight:bold}
+.cell.start{background:#e8f5e9}
+.cell.finish{background:#fff4cc}
+.num{font-weight:bold}.name{line-height:1.05}.price{font-size:.85em}.tokens{font-size:1.1em}
+.controls{text-align:center;padding:12px}.dice{font-size:28px;font-weight:bold;margin-bottom:7px}
+.message{line-height:1.45}
+.question{margin-top:12px}
+.answers{display:grid;gap:7px;margin-top:10px}
+.answers button{text-align:left}
+.ph-link{display:inline-block;margin:10px 0;padding:10px 12px;border-radius:9px;background:#eef4ff;color:#174ea6;text-decoration:none;font-weight:bold}
+.small{font-size:13px;color:#666}
+.rules ul{margin-bottom:0}
+@media(max-width:500px){body{padding:8px}.card{padding:10px}.board{width:98vw}.cell{padding:2px;font-size:8px}}
+</style>
+</head>
+<body>
+<main>
+<div class="card">
+<h1>🧪 Química Imobiliária</h1>
+<div class="subtitle">Banco Imobiliário de Química usando o PhET como laboratório virtual</div>
+
+<div id="setup" class="setup">
+<label for="num"><b>Jogadores:</b></label>
+<select id="num">
+<option value="2">2 jogadores</option>
+<option value="3">3 jogadores</option>
+<option value="4">4 jogadores</option>
+</select>
+<button class="primary" id="start">Começar partida</button>
+</div>
+
+<div id="game" class="hidden">
+<div id="scores" class="scores"></div>
+<div id="board" class="board"></div>
+
+<div class="controls">
+<div id="dice" class="dice">🎲 —</div>
+<button class="primary" id="roll">Lançar dado</button>
+</div>
+
+<div id="status" class="card message"></div>
+<div id="task"></div>
+
+<button id="restart">Nova partida</button>
+</div>
+</div>
+
+<div class="card rules">
+<b>📘 Regras rápidas</b>
+<ul>
+<li>Cada jogador começa com 1.000 moedas.</li>
+<li>Ao cair em uma propriedade livre, pode comprá-la pelo preço indicado.</li>
+<li>Ao cair na propriedade de outro jogador, paga 100 moedas de aluguel.</li>
+<li>Casas ❓ são missões que precisam ser investigadas no PhET.</li>
+<li>Missão concluída: +150 moedas. Missão não concluída: −50 moedas.</li>
+<li>Chegada: +300 moedas.</li>
+<li>O objetivo é terminar com o maior patrimônio.</li>
+</ul>
+<p class="small">Observação: o jogo abre o PhET em uma nova aba. É necessário ter acesso à internet para usar a simulação.</p>
+</div>
+</main>
+
+<script>
+(() => {
+const cells = [
+ ['🚩','INÍCIO','start'],
+ ['🍋','Limão',100],
+ ['❓','DESAFIO','q'],
+ ['🥤','Refrigerante',120],
+ ['🧪','Ácido cítrico',140],
+ ['❓','DESAFIO','q'],
+ ['🧼','Sabão',160],
+ ['🔬','LABORATÓRIO','lab'],
+ ['🍊','Suco de laranja',110],
+ ['❓','DESAFIO','q'],
+ ['🧴','Vinagre',130],
+ ['💧','Água',100],
+ ['❓','DESAFIO','q'],
+ ['🧽','Detergente',150],
+ ['🧪','INDICADOR','bonus'],
+ ['❓','DESAFIO','q'],
+ ['🧪','HCl — conceito',180],
+ ['🧼','Base — conceito',170],
+ ['❓','DESAFIO','q'],
+ ['🧪','NaOH — conceito',190],
+ ['💰','BÔNUS','bonus'],
+ ['❓','DESAFIO','q'],
+ ['🥛','Leite',100],
+ ['🧴','Água sanitária',210],
+ ['🏆','CHEGADA','finish']
+];
+
+const tasks = [
+ ['Use o PhET para descobrir qual solução apresentada tem o menor pH.',
+  'Compare pelo menos três soluções no simulador e indique qual é a mais ácida.'],
+ ['No PhET, escolha uma solução ácida e adicione água.',
+  'Observe o pH antes e depois da diluição e explique o que aconteceu.'],
+ ['Escolha uma solução básica no PhET.',
+  'Registre o valor de pH observado e explique por que ela é classificada como básica.'],
+ ['Use o modo microscópico do PhET para comparar H₃O⁺ e OH⁻.',
+  'Qual desses íons aparece em maior quantidade em uma solução ácida?'],
+ ['Escolha duas soluções no PhET e ordene-as da mais ácida para a mais básica.',
+  'Use os valores de pH observados para justificar sua resposta.'],
+ ['Crie uma solução com pH próximo de 7 no PhET.',
+  'Explique por que ela é considerada aproximadamente neutra.']
+];
+
+let players = [];
+let turn = 0;
+let busy = false;
+let owners = {};
+
+const setup = document.getElementById('setup');
+const game = document.getElementById('game');
+const board = document.getElementById('board');
+const scores = document.getElementById('scores');
+const status = document.getElementById('status');
+const task = document.getElementById('task');
+const dice = document.getElementById('dice');
+
+function gridPosition(i){
+ if(i<=6) return [7,7-i];
+ if(i<=12) return [7-(i-6),1];
+ if(i<=18) return [1,i-12];
+ return [i-18,7];
+}
+
+function draw(){
+ board.innerHTML='';
+ cells.forEach((c,i)=>{
+   const e=document.createElement('div');
+   e.className='cell';
+   if(['q','bonus','lab','start','finish'].includes(c[2])) e.classList.add('special');
+   if(c[2]==='start') e.classList.add('start');
+   if(c[2]==='finish') e.classList.add('finish');
+
+   const [row,col]=gridPosition(i);
+   e.style.gridRow=row;
+   e.style.gridColumn=col;
+
+   const tokens=players.filter(p=>p.pos===i).map(p=>p.token).join('');
+   const owner=owners[i]!=null ? '👤 J'+(owners[i]+1) : '';
+
+   e.innerHTML=
+     '<div class="num">'+i+'</div>'+
+     '<div>'+c[0]+' <span class="name">'+c[1]+'</span></div>'+
+     '<div class="price">'+(typeof c[2]==='number'?'🪙 '+c[2]:owner)+'</div>'+
+     '<div class="tokens">'+tokens+'</div>';
+
+   board.appendChild(e);
+ });
+
+ scores.innerHTML=players.map(p=>
+   '<span class="score">'+p.token+' J'+(p.id+1)+' — <b>'+p.coins+' 🪙</b></span>'
+ ).join('');
+}
+
+function message(text){
+ status.innerHTML=text;
+}
+
+function startGame(){
+ const n=Number(document.getElementById('num').value);
+ players=[];
+ owners={};
+
+ for(let i=0;i<n;i++){
+   players.push({
+     id:i,
+     pos:0,
+     coins:1000,
+     token:['🔴','🟢','🔵','🟣'][i],
+     props:[]
+   });
+ }
+
+ turn=0;
+ busy=false;
+ setup.classList.add('hidden');
+ game.classList.remove('hidden');
+ task.innerHTML='';
+ draw();
+ message('É a vez do <b>Jogador 1</b>. Lance o dado!');
+}
+
+function nextTurn(){
+ turn=(turn+1)%players.length;
+ busy=false;
+ task.innerHTML='';
+ message('É a vez do <b>Jogador '+(turn+1)+'</b>. Lance o dado!');
+ draw();
+}
+
+function challenge(){
+ busy=true;
+
+ const t=tasks[Math.floor(Math.random()*tasks.length)];
+
+ task.innerHTML=
+ '<div class="card question">'+
+ '<b>🧠 MISSÃO PhET</b><br><br>'+
+ t[0]+'<br>'+
+ '<span class="small">'+t[1]+'</span><br>'+
+ '<a class="ph-link" href="https://phet.colorado.edu/pt/simulations/ph-scale" target="_blank" rel="noopener">🔬 Abrir Escala de pH — PhET</a><br>'+
+ '<button class="primary" id="correct">✅ Consegui a missão (+150 🪙)</button>'+
+ '<button id="wrong">❌ Não consegui (−50 🪙)</button>'+
+ '</div>';
+
+ document.getElementById('correct').onclick=()=>{
+   players[turn].coins+=150;
+   message('🎉 <b>Missão concluída!</b> Jogador '+(turn+1)+' ganhou 150 🪙.');
+   draw();
+   setTimeout(nextTurn,800);
+ };
+
+ document.getElementById('wrong').onclick=()=>{
+   players[turn].coins=Math.max(0,players[turn].coins-50);
+   message('A missão não foi concluída. Jogador '+(turn+1)+' perdeu 50 🪙.');
+   draw();
+   setTimeout(nextTurn,800);
+ };
+}
+
+function land(){
+ const p=players[turn];
+ const c=cells[p.pos];
+
+ if(p.pos===24){
+   p.coins+=300;
+   message('🏆 <b>Chegada!</b> Jogador '+(turn+1)+' ganhou 300 🪙.');
+   draw();
+   setTimeout(nextTurn,900);
+   return;
+ }
+
+ if(c[2]==='q'){
+   challenge();
+   return;
+ }
+
+ if(c[2]==='bonus'){
+   p.coins+=150;
+   message('💰 <b>Bônus científico!</b> +150 🪙.');
+   draw();
+   setTimeout(nextTurn,700);
+   return;
+ }
+
+ if(c[2]==='lab'){
+   p.coins=Math.max(0,p.coins-75);
+   message('🔬 Taxa do laboratório: −75 🪙.');
+   draw();
+   setTimeout(nextTurn,700);
+   return;
+ }
+
+ if(typeof c[2]==='number'){
+   const price=c[2];
+   const owner=owners[p.pos];
+
+   if(owner==null){
+     if(p.coins>=price){
+       p.coins-=price;
+       owners[p.pos]=turn;
+       p.props.push(p.pos);
+       message('🏠 <b>'+c[1]+'</b> adquirida por '+price+' 🪙.');
+     }else{
+       message('💸 Você não possui moedas suficientes para comprar esta propriedade.');
+     }
+   }else if(owner===turn){
+     message('🏠 Você está na sua própria propriedade.');
+   }else{
+     p.coins=Math.max(0,p.coins-100);
+     players[owner].coins+=100;
+     message('💸 Você pagou 100 🪙 de aluguel ao Jogador '+(owner+1)+'.');
+   }
+
+   draw();
+   setTimeout(nextTurn,850);
+ }
+}
+
+function roll(){
+ if(busy)return;
+
+ busy=true;
+
+ const d=Math.floor(Math.random()*6)+1;
+ dice.textContent='🎲 '+d;
+
+ const p=players[turn];
+ const old=p.pos;
+
+ p.pos=Math.min(24,p.pos+d);
+
+ if(p.pos===24 && old!==24) p.coins+=200;
+
+ message(
+   'Jogador '+(turn+1)+
+   ' avançou <b>'+d+' casas</b> e caiu em <b>'+
+   cells[p.pos][1]+'</b>.'
+ );
+
+ draw();
+
+ setTimeout(()=>{
+   busy=false;
+   land();
+ },450);
+}
+
+document.getElementById('start').onclick=startGame;
+document.getElementById('roll').onclick=roll;
+
+document.getElementById('restart').onclick=()=>{
+ game.classList.add('hidden');
+ setup.classList.remove('hidden');
+ task.innerHTML='';
+ dice.textContent='🎲 —';
+};
+})();
+</script>
+</body>
+</html>
